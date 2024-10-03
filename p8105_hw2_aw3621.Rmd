@@ -1,0 +1,233 @@
+---
+title: "p8105_hw2_aw3621"
+author: "Anni Wang"
+date: "2024-10-02"
+output: github_document
+---
+
+```{r}
+library(tidyverse)
+library(readxl)
+```
+#Promblem 1
+```{r}
+# Reading data
+nyc_transit_df = read_csv(file = "NYC_Transit_Subway_Entrance_And_Exit_Data.csv", na = c("NA", ".", "")) |>
+  janitor::clean_names() |>
+  select("line", "station_name", "station_latitude", "station_longitude",
+         c("route1":"route11"), "entry", "vending", "entrance_type", "ada") |>
+  mutate(entry = case_match(
+       entry,
+        "YES" ~ TRUE,
+        "NO" ~ FALSE))
+```
+##short paragraph about this dataset
+This dataset contain 1868 observations and have 32 varibales before data cleaning, after cleaning there are 19 variables in total.
+To get this dataset,
+I standardize the naming of the columns by using janitor::clean_names function;
+then select the variable I want to keep; and use mutate function to covert varibales from character to logical variable.
+This is not tidy because there are 11 "route" variables in total right now.I was assuming these variables may need to be merge as one route varibale.
+### How many distinct stations are there?
+```{r}
+stations_df = nyc_transit_df |>
+  distinct(line, station_name)
+stations_df
+```
+From running this code, we can know that there are 465 distinct stations here.
+
+###How many stations are ADA compliant?
+```{r}
+ADAcompliant_df= nyc_transit_df|>
+  select(ada, line, station_name) |>
+     filter(ada) |> 
+     distinct(line, station_name)
+
+ ADAcompliant_df
+```
+From running this code, we can know that there are 84 ADA compliant stations here.
+
+### What proportion of station entrances / exits without vending allow entrance?
+```{r}
+station_entrances = 
+   nyc_transit_df |> 
+      filter(vending == "NO", entry == TRUE)
+
+exits_without_vending =
+   nyc_transit_df |> 
+   filter(vending == "NO")
+ 
+proportion = nrow(station_entrances) / nrow(exits_without_vending)
+
+proportion
+
+```
+The proportion of station entrances / exits without vending allow entrance is 0.3770 (or 37.70%).
+
+###Reformat data so that route number and route name are distinct variables. How many distinct stations serve the A train? Of the stations that serve the A train, how many are ADA compliant?
+
+```{r}
+reformat_nyc_transit_data =
+   nyc_transit_df |> 
+   mutate(across(route1:route11, as.character)) |> 
+   pivot_longer(
+    cols = route1:route11,
+    names_to = "route_number",
+    values_to = "route_value",
+    names_prefix = "route"
+) |> 
+   filter(route_value == "A", ada == TRUE) |> 
+   distinct(line, station_name)
+reformat_nyc_transit_data
+```
+There are 60 distinct stations serving the A train, of which 17 are ADA compliant.
+
+#Promblem 2
+```{r}
+library(dplyr)
+```
+For mr trash wheel:
+```{r}
+trash_wheel = 
+  read_excel('202409 Trash Wheel Collection Data.xlsx', 
+             sheet = 'Mr. Trash Wheel',
+             range = cell_cols("A:N"),
+             skip = 1,
+             ) %>% 
+  janitor::clean_names() %>% 
+  filter(!is.na(dumpster)) %>% 
+  mutate(sports_balls = as.integer(round(sports_balls)),
+         year = as.numeric(year))
+
+```
+For Professor Trash Wheel sheet:
+```{r}
+professor_trash_wheel <- read_excel("202409 Trash Wheel Collection Data.xlsx", 
+                                    sheet = "Professor Trash Wheel",
+                                   range = cell_cols("A:M"),skip = 1,) %>%
+  janitor::clean_names() %>% 
+  filter(!is.na(dumpster))
+
+```
+For Gwynnda Trash Wheel sheet:
+```{r}
+gwynnda_trash_wheel <-read_excel('202409 Trash Wheel Collection Data.xlsx', 
+             sheet = 'Gwynnda Trash Wheel',
+             range = cell_cols("A:L"),
+             skip = 1, ) %>% 
+  janitor::clean_names() %>% 
+  filter(!is.na(dumpster)) 
+```
+
+Combine data:
+```{r}
+trash_wheel<- trash_wheel %>% 
+  mutate(source = "Mr. Trash Wheel")
+
+professor_trash_wheel<- professor_trash_wheel %>% 
+  mutate(source = "Professor Trash Wheel")
+
+gwynnda_trash_wheel <- gwynnda_trash_wheel %>% 
+  mutate(source = "Gwynnda Trash Wheel")
+
+combined <- bind_rows(trash_wheel, professor_trash_wheel, gwynnda_trash_wheel) %>% 
+  relocate(source)
+
+```
+
+```{r}
+# Count the number of observations in the data set (with duplication)
+num_observations <- nrow(combined)
+
+num_observations
+
+# Total weight of trash collected by Professor Trash Wheel
+combined %>% 
+  filter(source == "Professor Trash Wheel") %>% 
+  summarise(total_weight = sum(weight_tons, na.rm = TRUE)) %>% 
+  pull(total_weight)
+```
+```{r}
+# Total nuber of cigarette butts collected by Gwynnda in june 2022
+combined %>% 
+  filter(source == "Gwynnda Trash Wheel", month == "June", year == 2022) %>% 
+  summarise(total_cig = sum(cigarette_butts, na.rm = TRUE)) %>% 
+  pull(total_cig)
+```
+### From running the code above,we know that there are 1033 observations and 15 variables in total. There was 14 varibales orginally and the 1 new is what we created to identified which dataset is certain data from. This dataset is a combination of  the Mr. Trash Wheel, Professor Trash Wheel, and Gwynnd Trash Wheel datasets.After doing calculation on R, we know that the total weight of trash collected by Professor Trash Wheel was 246.74 tons. The total number of cigarette butts collected by Gwynnda in June of 2022 was 18120.
+
+###Question 3
+```{r}
+library(readr)
+
+#Import data
+bakers = 
+  read_csv('bakers.csv') %>% 
+  janitor::clean_names() %>% 
+  separate(baker_name, into = c("baker", "baker_last_name"), sep = " ", extra = "merge") 
+
+bakes = 
+  read_csv('bakes.csv', na = c("NA", " ", ".", "UNKNOWN", "Unknown", "N/A")) %>% 
+  janitor::clean_names()
+
+results =
+  read_csv('results.csv', skip = 2) %>% 
+  janitor::clean_names()
+
+viewers <- read_csv("viewers.csv")
+```
+check for completeness and correctness across datasets:
+```{r}
+anti_join(bakes, bakers, by = c("series","baker"))
+```
+merge to create a single, final dataset:
+```{r}
+library(dplyr)
+library(readr)
+
+final_data <- bakers %>%
+  inner_join(bakes, by = c("baker", "series")) %>%
+  inner_join(results, by = c("baker", "series", "episode")) %>%
+  select(baker_last_name, baker_age, baker_occupation, hometown,
+         series, episode, signature_bake, show_stopper, technical, result)
+write_csv(final_data, 
+          "final_data.csv")
+```
+For this final dataset, I import all the dataset first,and then standarized these three datasets.
+When I try to merge the data, one problem I encountered was that it keep saying column `episode` doesn't exist. At first I thougth that was because I used "left_joined" function instead of "inner_joined", so I tried "left"/"right"/"inner" and realize the problem may not be on this function. Thus, I have to use colnames function to check what happen. However after checking, it does exist. After checking millions of times I have to delere this code chunck to redo it again. Luckily this time the code works. I am still not too sure what happened to this R code, hopefully I can have chance to figure it out when this semester end.
+The final dataset includes all the bakers from the bakers dataset. It has their personal details, which series and episode they were in, details about their bakes, and their results. The data is organized starting with personal information like name, age, job, and hometown. It then shows which series and episode they participated in, details about their baking, and finally how they performed.
+
+###Create a reader-friendly table showing the star baker or winner of each episode in Seasons 5 through 10.
+```{r}
+viewers_long <-  read_csv('viewers.csv') %>%
+  janitor::clean_names() %>% 
+  pivot_longer(
+    cols = starts_with("series"), 
+    names_to = "series", 
+    values_to = "viewers",
+    names_prefix = "seriess "
+  )
+head(viewers, 10)
+
+
+# Calculate average viewership for Season 1
+s1_mean <- viewers_long %>%
+  filter(series == "series_1") %>%   
+  pull(viewers) %>%  
+  mean(na.rm = TRUE)
+
+# Calculate average viewership for Season 5
+s5_mean <- viewers_long %>%
+  filter(series == "series_5") %>%
+  pull(viewers) %>% 
+  mean(na.rm = TRUE)
+
+# Print the results
+print(paste("Average viewership in Season 1:", s1_mean))
+print(paste("Average viewership in Season 5:", s5_mean))
+
+```
+The average viewership in season 1 was 2.77, and the average viewership in season 5 was 10.0393.
+
+
+
+
